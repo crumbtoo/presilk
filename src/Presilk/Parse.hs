@@ -1,96 +1,98 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Presilk.Parse
-    ( parse, parse1, pprint
+    ( Presilk.Parse.parse, parse1
     )
     where
 --------------------------------------------------------------------------------
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import Text.Megaparsec.Char.Lexer       qualified as L
 import Data.Text                        qualified as T
 import Data.Text                        (Text)
 import Data.Void
 import Data.Char
-import Data.Function
-import Data.Functor
-import Control.Applicative              hiding ((<|>), many, some)
+import Control.Applicative              hiding (many, some)
 import Control.Monad
-
-import Data.SCargot
-import Data.SCargot.Repr
-import Data.SCargot.Repr.WellFormed
-import Data.SCargot.Atom
-import Data.SCargot.Common
-import Data.SCargot.Comments
-
-import Text.Parsec                      hiding (parse)
-import Text.Parsec.Text                 (Parser)
 
 import Presilk.Syntax
 --------------------------------------------------------------------------------
 
 type P = Parsec Void Text
 
-ident :: Parser Text
-ident = T.pack <$> ((:) <$> initial <*> many rest)
-    where
-        isParen = (`elem` ("[({})]" :: String))
-        isOk c = not $ isSpace c || isControl c || isParen c
-        initial = satisfy \c ->
-            isOk c && not (isDigit c)
-        rest = satisfy isOk
+sexp :: P Sexp
+sexp = form
+   <|> (Atom <$> atom)
+   <|> quote
+   <|> quasiquote
+   <|> unquote
 
-vecReader :: Parser (SExpr Atom) -> Parser (SExpr Atom)
-vecReader p = SCons (SAtom (Symbol "vector")) <$> es
-  where
-    es = (char ']' $> SNil)
-     <|> (SCons <$> p <*> es)
+mkQuote :: (Sexp -> Sexp) -> P a -> P Sexp
+mkQuote f q = f <$> (q *> sexp)
 
-mkQuoter :: Symbol -> Parser (SExpr Atom) -> Parser (SExpr Atom)
-mkQuoter q p = quote <$> p
+-- potentially a bug?
+-- >>> parse1 ",,doge"
+-- Right (List [Atom (Symbol "unquote"),List [Atom (Symbol "unquote"),Atom (Symbol "doge")]])
+
+-- we don't use `lexeme` or `special` here to disallow whitespace between the
+-- quote mark and the quoted form.
+
+quote, quasiquote, unquote :: P Sexp
+quote = mkQuote (sexpApply "quote") "'"
+quasiquote = mkQuote (sexpApply "quasiquote") "`"
+unquote = mkQuote (sexpApply "unquote") ","
+
+form :: P Sexp
+form = list <|> vec
   where
-    quote e = SCons (SAtom (Symbol q)) (SCons e SNil)
+    vec = fmap (List . mkvec) $ listWith (special "[") (special "]") sexp
+    mkvec = (Atom (Symbol "vec") :)
+
+list :: P Sexp
+list = fmap List $ listWith (special "(") (special ")") sexp
+
+atom :: P Atom
+atom = (Symbol <$> symbol)
+   <|> (LitInt <$> litint)
+   <|> (LitStr <$> litstr)
+
+symbol :: P Symbol
+symbol = lexeme (T.cons <$> satisfy isHeadChar <*> takeWhileP Nothing isSymChar)
+  where
+    isHeadChar c = isSymChar c && (c /= '\'') && not (isDigit c)
+    isSymChar c = (c `notElem` ['(',')','[',']',',','`','"'])
+               && (not . isSpace $ c)
+
+litint :: P Int
+litint = lexeme $ L.signed empty L.decimal
+
+litstr :: P Text
+litstr = lexeme . fmap T.pack $ str
+    where str = char '"' *> manyTill L.charLiteral (char '"')
 
 --------------------------------------------------------------------------------
 
-marshal :: WellFormedSExpr Atom -> Sexp
-marshal (L es) = List $ marshal <$> es
-marshal (A a) = Atom a
+listWith :: P l        -- ^ open list
+         -> P r        -- ^ close list
+         -> P a
+         -> P [a]
+listWith l r a = l *> many a <* r
 
-marshalBack :: Sexp -> WellFormedSExpr Atom
-marshalBack (List es) = L $ marshalBack <$> es
-marshalBack (Atom a) = A a
+parse1 :: Text -> Either _ Sexp
+parse1 = runParser (sc *> sexp <* eof) "Presilk.Parse.parse1"
 
-printAtom :: Atom -> Text
-printAtom (Symbol s) = s
-printAtom (LitInt n) = T.pack . show $ n
--- `show` gives us char escapes and quotes for free
-printAtom (LitStr s) = T.pack . show $ s
+parse :: Text -> Either _ [Sexp]
+parse = runParser (many sexp <* eof) "Presilk.Parse.parse"
 
-parserSpec :: SExprParser Atom (SExpr Atom)
-parserSpec = mkAtomParser
-    [ atom Symbol ident
-    , atom (LitInt . fromInteger) signedDecNumber
-    ]
-    & addReader '[' vecReader
-    & addReader '\'' (mkQuoter "quote")
-    & addReader '`' (mkQuoter "quasiquote")
-    & addReader ',' (mkQuoter "unquote")
-    & setComment (lineComment ";"
-              <|> simpleBlockComment "#|" "|#")
+sc :: P ()
+sc = void . many $ void (satisfy isSpace) <|> comment
+  where
+    comment = L.skipLineComment ";"
+          <|> L.skipBlockCommentNested "#|" "|#"
+          <|> void (special "#;" *> sexp)
 
-parser :: SExprParser Atom Sexp
-parser = setCarrier (Right . marshal) (asWellFormed parserSpec)
+lexeme :: P a -> P a
+lexeme = L.lexeme sc
 
-printer :: SExprPrinter Atom Sexp
-printer = basicPrint printAtom
-        & setFromCarrier (fromWellFormed . marshalBack)
-
---------------------------------------------------------------------------------
-
-parse1 :: Text -> Either String Sexp
-parse1 = decodeOne parser
-
-parse :: Text -> Either String [Sexp]
-parse = decode parser
-
-pprint :: Sexp -> Text
-pprint = encodeOne printer
+special :: Text -> P Text
+special = L.symbol sc
 
