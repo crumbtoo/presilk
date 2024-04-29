@@ -16,7 +16,14 @@ extra-doc-files:    CHANGELOG.md
 -- extra-source-files:
 
 common warnings
-    ghc-options: -Wall
+    ghc-options: -Wall -fdefer-typed-holes
+    default-extensions:
+        LambdaCase
+        PatternSynonyms
+        PartialTypeSignatures
+        DeriveTraversable
+        TypeFamilies
+        BlockArguments
 
 library
     import:           warnings
@@ -26,6 +33,10 @@ library
     -- other-modules:
     -- other-extensions:
     build-depends:    base ^>=4.19.1.0
+                    , deriving-compat
+                    , recursion-schemes
+                    , text
+                    , megaparsec
     hs-source-dirs:   src
     default-language: GHC2021
 
@@ -34,9 +45,12 @@ executable presilk
     main-is:          Main.hs
     -- other-modules:
     -- other-extensions:
-    build-depends:
-        base ^>=4.19.1.0,
-        presilk
+    build-depends: base ^>=4.19.1.0
+                 , presilk
+                 , haskeline
+                 -- temp; just to bum their error pretty printing
+                 , megaparsec
+                 , text
 
     hs-source-dirs:   app
     default-language: GHC2021
@@ -49,9 +63,8 @@ test-suite presilk-test
     type:             exitcode-stdio-1.0
     hs-source-dirs:   tst
     main-is:          Main.hs
-    build-depends:
-        base ^>=4.19.1.0,
-        presilk
-    default-extensions:
-        LambdaCase
+    build-depends: base ^>=4.19.1.0
+                 , presilk
+                 , hspec ==2.*
+
 
