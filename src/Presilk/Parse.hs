@@ -23,10 +23,23 @@ sexp :: P Sexp
 sexp = form
    <|> (Atom <$> atom)
    <|> quote
+   <|> quasiquote
+   <|> unquote
 
--- fixme: this allows for whitespace between the "\'" and the quoted piece.
-quote :: P Sexp
-quote = sexpApply "quote" <$> (special "'" *> sexp)
+mkQuote :: (Sexp -> Sexp) -> P a -> P Sexp
+mkQuote f q = f <$> (q *> sexp)
+
+-- potentially a bug?
+-- >>> parse1 ",,doge"
+-- Right (List [Atom (Symbol "unquote"),List [Atom (Symbol "unquote"),Atom (Symbol "doge")]])
+
+-- we don't use `lexeme` or `special` here to disallow whitespace between the
+-- quote mark and the quoted form.
+
+quote, quasiquote, unquote :: P Sexp
+quote = mkQuote (sexpApply "quote") "'"
+quasiquote = mkQuote (sexpApply "quasiquote") "`"
+unquote = mkQuote (sexpApply "unquote") ","
 
 form :: P Sexp
 form = list <|> vec
