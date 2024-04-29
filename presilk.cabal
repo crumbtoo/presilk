@@ -29,7 +29,6 @@ library
     import:           warnings
     exposed-modules:  Presilk
                       Presilk.Parse
-                      Presilk.Print
                       Presilk.Syntax
     -- other-modules:
     -- other-extensions:
@@ -37,7 +36,8 @@ library
                     , deriving-compat
                     , recursion-schemes
                     , text
-                    , megaparsec
+                    , parsec
+                    , s-cargot
     hs-source-dirs:   src
     default-language: GHC2021
 
