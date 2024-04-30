@@ -51,10 +51,14 @@ pattern Return :: L.Exp -> L.Block
 pattern Return e = L.Block [] (Just [e])
 
 -- > Number IntNum :: Text -> Exp
--- who made this fucking library
+-- ... cool.
 pattern IntE :: Int -> L.Exp
 pattern IntE n <- L.Number L.IntNum (readMaybe . T.unpack -> Just n)
   where IntE n = L.Number L.IntNum (T.pack . show $ n)
+
+pattern FunCallE :: L.Exp -> [L.Exp] -> L.Exp
+pattern FunCallE f as =
+  L.PrefixExp (L.PEFunCall (L.NormalFunCall (L.Paren f) (L.Args as))) 
 
 --------------------------------------------------------------------------------
 
@@ -110,7 +114,14 @@ compileOne g (List ["lambda", Vector as, e])
 
 compileOne g (List ("+" : as)) = case as of
   [] -> pure . fromExp . IntE $ 0
-  _ -> fromExp . foldr1 (L.Binop L.Add) <$> compileOne @Exp g `traverse` as
+  _ -> fromExp . foldr1 (L.Binop L.Add) <$> as'
+    where as' = compileOne @Exp g `traverse` as
+
+compileOne g (List (f : as)) =
+    fmap fromExp $ FunCallE <$> f' <*> as'
+  where
+    f' = compileOne g f
+    as' = compileOne g `traverse` as
 
 compileOne _ e = error . show $ e
 
@@ -126,9 +137,11 @@ augmentEnv = foldr $ \(s,n) g -> H.insert s n g
 compile :: [Sexp] -> Either Text [L.Block]
 compile = evalC . traverse _
 
-compileTest s = case parse1 s of
+compileTest g s = case parse1 s of
   Left e -> Left . T.pack . show $ e
-  Right a -> evalC . fmap pprint . compileOne @Exp mempty $ a
+  Right a -> evalC . fmap pprint . compileOne @Exp g $ a
+
+compileTest' = compileTest mempty
 
 evalC :: C a -> Either Text a
 evalC = runExcept . (`evalStateT` ns)
