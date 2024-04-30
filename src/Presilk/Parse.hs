@@ -45,7 +45,7 @@ form :: P Sexp
 form = list <|> vec
   where
     vec = fmap (List . mkvec) $ listWith (special "[") (special "]") sexp
-    mkvec = (Atom (Symbol "vec") :)
+    mkvec = (Atom (Symbol "vector") :)
 
 list :: P Sexp
 list = fmap List $ listWith (special "(") (special ")") sexp
