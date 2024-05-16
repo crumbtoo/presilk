@@ -1,0 +1,10 @@
+[custom.all.wasm-codegen]
+type = "local"
+path = "."
+ipkg = "wasm-codegen.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.wasm-codegen-test]
+type = "local"
+path = "test"
+ipkg = "test.ipkg"
