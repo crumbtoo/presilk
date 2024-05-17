@@ -1,7 +1,10 @@
 #+title: presilk
-#+author: hexathe6, Madeleine Sydney Slaga
+#+author: hexathe6, Madeleine Sydney
 
 This repo hosts a simple lisp compiler intended to be a testing ground for the
 design of Silk, a lisp descendent taking inspiration from Haskell and C.
 
 * Todo List
+  - [ ] port parser tests from Haskell version
+  - [ ] datum comments
+

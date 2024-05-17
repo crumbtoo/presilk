@@ -1,4 +1,4 @@
-package wasm-codegen
+package presilk
 version = 0.1.0
 authors = "crumbtoo"
 -- maintainers =
@@ -13,16 +13,21 @@ authors = "crumbtoo"
 -- langversion
 
 -- packages to add to search path
-depends = contrib, elab-util, bytestring
+depends = contrib, elab-util, bytestring, pretty-show
 
 -- modules to install
-modules = Language.Wasm, Language.Wasm.Syntax, Language.Wasm.Syntax.Internal
+modules = Language.Wasm
+        , Language.Wasm.Syntax
+        , Language.Wasm.Syntax.Internal
+        , Language.Presilk.Lex
+        , Language.Presilk.Parse
+        , Presilkc
 
 -- main file (i.e. file to load at REPL)
-main = Language.Wasm
+main = Presilkc
 
 -- name of executable
--- executable =
+executable = "presilkc"
 -- opts =
 sourcedir = "src"
 -- builddir =
